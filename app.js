@@ -2,10 +2,7 @@ const firebaseConfig = {
     apiKey: "AIzaSyDvj-9BlmWy2EpSC-XSFhOGOnqrQ8JYB3E",
     authDomain: "painel-ets.firebaseapp.com",
     databaseURL: "https://painel-ets-default-rtdb.firebaseio.com", 
-    projectId: "painel-ets",
-    storageBucket: "painel-ets.firebasestorage.app",
-    messagingSenderId: "809999984863",
-    appId: "1:809999984863:web:251e244866c0b0debf616a"
+    projectId: "painel-ets"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -15,9 +12,10 @@ let dados = {};
 let editando = null; 
 let filtroAtual = 'Todos'; 
 let ordemAtual = 'Antigo'; 
+let cardapioCoord = {}; // NOVO: Guarda as coordenadas base
 
 // ==========================================
-// MODO NOTURNO (TEMA)
+// TEMA NOTURNO
 // ==========================================
 function alternarTema() {
     document.body.classList.toggle('dark-mode');
@@ -26,7 +24,6 @@ function alternarTema() {
     document.getElementById('btnTheme').innerText = isDark ? '☀️' : '🌙';
 }
 
-// Carrega o tema salvo ao abrir a página
 window.onload = () => {
     if (localStorage.getItem('temaCaern') === 'escuro') {
         document.body.classList.add('dark-mode');
@@ -55,21 +52,22 @@ function calcularDias(dataString) {
 }
 
 function exportarExcel() {
-    let csv = "Encarregado;Local;Servico;Data;Dias;Status;Urgencia;Observacao\n";
+    let csv = "Encarregado;Local;Servico;Data;Dias;Status;Urgencia;No Mapa;Observacao\n";
     for (const [encarregado, servicos] of Object.entries(dados)) {
         servicos.forEach(item => {
             if(item.dummy) return;
             const infoData = calcularDias(item.data);
             const urg = item.urgencia ? "Sim" : "Nao";
+            const noMapa = item.coordId ? "Sim" : "Nao"; // Mostra no excel se tá no mapa
             const nota = item.nota ? item.nota.replace(/;/g, ',') : "";
-            csv += `${encarregado};${item.local};${item.servico};${infoData.formatada};${infoData.dias};${item.status};${urg};${nota}\n`;
+            csv += `${encarregado};${item.local};${item.servico};${infoData.formatada};${infoData.dias};${item.status};${urg};${noMapa};${nota}\n`;
         });
     }
     const blob = new Blob(["\uFEFF"+csv], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "Relatorio_CAERN_ETS.csv";
+    a.download = "Relatorio_GFT.csv";
     a.click();
 }
 
@@ -80,6 +78,12 @@ db.ref('obrasCaern').on('value', (snapshot) => {
     dados = snapshot.val() || {}; 
     renderizarDashboard();
     renderizarAdmin();
+});
+
+// LÊ O CARDÁPIO DE COORDENADAS
+db.ref('cardapioCoordenadas').on('value', (snapshot) => {
+    cardapioCoord = snapshot.val() || {};
+    preencherSelectCoordenadas();
 });
 
 db.ref('ultimaAtualizacao').on('value', (snapshot) => {
@@ -94,8 +98,27 @@ function salvarDados() {
     db.ref('ultimaAtualizacao').set(agora);
 }
 
+// Preenche a lista suspensa com os endereços em ordem alfabética
+function preencherSelectCoordenadas() {
+    const select = document.getElementById('selectCoordenada');
+    if (!select) return;
+    
+    const valorAtual = select.value; // Guarda o que estava selecionado pra não piscar
+    select.innerHTML = '<option value="">📍 Não vincular a nenhum ponto no mapa</option>';
+    
+    // Converte objeto em array pra poder ordenar por nome (A-Z)
+    const lista = Object.entries(cardapioCoord).map(([id, val]) => ({ id, ...val }));
+    lista.sort((a, b) => a.tituloCompleto.localeCompare(b.tituloCompleto));
+
+    lista.forEach(item => {
+        select.innerHTML += `<option value="${item.id}">${item.tituloCompleto}</option>`;
+    });
+    
+    select.value = valorAtual;
+}
+
 // ==========================================
-// LÓGICA DA TV
+// LÓGICA DA TV (Dashboard Principal)
 // ==========================================
 function atualizarFiltros() {
     filtroAtual = document.getElementById('filtroStatus').value;
@@ -140,13 +163,14 @@ function renderizarDashboard() {
             const infoData = calcularDias(item.data);
             let classeAlerta = (item.status === 'Parada' && infoData.diffDias >= 10) ? 'alerta-vermelho' : '';
             const badgeUrgencia = item.urgencia ? `<span class="tag-urgencia">Urgente</span>` : '';
+            const badgeMapa = item.coordId ? `<span title="Vinculado ao Mapa" style="font-size:0.8rem;">📍</span>` : '';
             const htmlData = item.data ? `<div class="data-info">📅 ${infoData.formatada} <span class="contador-dias ${classeAlerta}">${infoData.dias}</span></div>` : '';
 
             htmlServicos += `
                 <div class="servico-item">
                     <div class="servico-header">
                         <div style="flex: 1; padding-right: 10px;">
-                            <span><strong>${item.local}</strong> - ${item.servico} ${badgeUrgencia}</span>
+                            <span><strong>${item.local}</strong> ${badgeMapa} - ${item.servico} ${badgeUrgencia}</span>
                             ${htmlData}
                         </div>
                         <span class="status status-${item.status.toLowerCase()}">${item.status}</span>
@@ -171,7 +195,7 @@ function renderizarDashboard() {
 }
 
 // ==========================================
-// LÓGICA DO PC (Com Busca)
+// LÓGICA DO PC (Com Busca e Mapa)
 // ==========================================
 function renderizarAdmin() {
     const select = document.getElementById('selectEncarregado');
@@ -194,7 +218,6 @@ function renderizarAdmin() {
         servicos.forEach((item, index) => {
             if (item.dummy) return; 
 
-            // Filtro de Busca
             if (termoBusca) {
                 const txtLocal = item.local.toLowerCase();
                 const txtServ = item.servico.toLowerCase();
@@ -205,12 +228,13 @@ function renderizarAdmin() {
 
             const infoData = calcularDias(item.data);
             const badgeUrg = item.urgencia ? '🚨' : '';
+            const badgeMapa = item.coordId ? '<span title="Vinculado ao Mapa">📍</span>' : '';
             const txtData = item.data ? `| 📅 ${infoData.formatada} (${infoData.dias})` : '';
 
             htmlServicos += `
                 <div class="servico-item" style="flex-direction: row; justify-content: space-between; align-items: center;">
                     <div style="flex: 1;">
-                        <strong>${badgeUrg} ${item.local}</strong> - ${item.servico} <span style="font-size: 0.8rem; color: #787774; margin-left: 5px;">${txtData}</span>
+                        <strong>${badgeUrg} ${item.local} ${badgeMapa}</strong> - ${item.servico} <span style="font-size: 0.8rem; color: #787774; margin-left: 5px;">${txtData}</span>
                         <div style="margin-top: 5px;"><span class="status status-${item.status.toLowerCase()}">${item.status}</span></div>
                     </div>
                     <div class="acoes-btn">
@@ -221,7 +245,6 @@ function renderizarAdmin() {
             `;
         });
 
-        // Se estiver buscando e não achou nada neste encarregado, oculta o quadro dele
         if (termoBusca && !encontrouNaBusca) continue;
 
         lista.innerHTML += `
@@ -237,7 +260,7 @@ function renderizarAdmin() {
 }
 
 // ==========================================
-// FUNÇÕES DE AÇÃO
+// FUNÇÕES DE AÇÃO (SALVAR OBRA)
 // ==========================================
 function adicionarEncarregado(event) {
     event.preventDefault();
@@ -258,10 +281,25 @@ function adicionarOuEditarServico(event) {
     const status = document.getElementById('statusLocal').value;
     const nota = document.getElementById('notaLocal').value.trim();
     const urgencia = document.getElementById('urgenciaLocal').checked; 
+    
+    // Captura o ID do mapa selecionado
+    const coordId = document.getElementById('selectCoordenada').value;
 
     if (encarregado && servico && local && data) {
+        
+        // Monta o objeto que vai pro banco
+        const objObra = { servico, local, data, status, nota, urgencia };
+        
+        // Se a pessoa vinculou no mapa, injeta os dados espaciais no objeto
+        if (coordId && cardapioCoord[coordId]) {
+            objObra.coordId = coordId;
+            objObra.lat = cardapioCoord[coordId].lat;
+            objObra.lng = cardapioCoord[coordId].lng;
+            objObra.coordNome = cardapioCoord[coordId].tituloCompleto;
+        }
+
         if (editando) {
-            dados[editando.encarregado][editando.index] = { servico, local, data, status, nota, urgencia };
+            dados[editando.encarregado][editando.index] = objObra;
             editando = null;
             document.getElementById('btnSubmitServico').innerText = 'Adicionar Obra';
             document.getElementById('selectEncarregado').disabled = false;
@@ -270,16 +308,18 @@ function adicionarOuEditarServico(event) {
             if(dados[encarregado].length === 1 && dados[encarregado][0].dummy) {
                 dados[encarregado] = [];
             }
-            dados[encarregado].push({ servico, local, data, status, nota, urgencia });
+            dados[encarregado].push(objObra);
         }
 
         salvarDados();
         
+        // Limpa tudo
         document.getElementById('nomeServico').value = '';
         document.getElementById('nomeLocal').value = '';
         document.getElementById('dataLocal').value = '';
         document.getElementById('notaLocal').value = '';
         document.getElementById('urgenciaLocal').checked = false; 
+        document.getElementById('selectCoordenada').value = ''; 
         document.getElementById('statusLocal').value = 'Iniciar';
     } else {
         alert("Preencha todos os campos obrigatórios!");
@@ -296,6 +336,9 @@ function prepararEdicao(encarregado, index) {
     document.getElementById('statusLocal').value = item.status;
     document.getElementById('notaLocal').value = item.nota || '';
     document.getElementById('urgenciaLocal').checked = item.urgencia || false; 
+    
+    // Restaura a seleção do mapa se houver
+    document.getElementById('selectCoordenada').value = item.coordId || ''; 
     
     document.getElementById('btnSubmitServico').innerText = 'Salvar Edição';
     editando = { encarregado, index };

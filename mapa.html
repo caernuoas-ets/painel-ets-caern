@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GFT - Mapa de Infraestrutura</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg-color: #f7f7f5;
+            --card-bg: #ffffff;
+            --text-main: #37352f;
+            --text-muted: #787774;
+            --border: #e9e9e7;
+        }
+
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: var(--bg-color); overflow: hidden; }
+        
+        .painel-flutuante {
+            position: absolute; top: 15px; left: 50px; right: 15px; max-width: 600px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+            padding: 1rem 1.5rem; border-radius: 8px; border: 1px solid var(--border);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08); z-index: 1000;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .painel-flutuante h1 { margin: 0; font-size: 1.2rem; color: var(--text-main); font-weight: 600; display: flex; align-items: center; gap: 8px;}
+        .status-banco { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; background: #f1f1ef; padding: 4px 8px; border-radius: 4px;}
+
+        #meuMapa { height: 100vh; width: 100vw; z-index: 1; }
+
+        /* Estilização dos Pinos e Cores de Status */
+        .icone-pino {
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            transition: transform 0.2s ease;
+        }
+        .icone-pino:hover { transform: scale(1.4); z-index: 1000 !important; cursor: pointer; }
+        
+        .pino-cinza { background-color: #b3b3b3; border: 2px solid #ffffff; opacity: 0.8;} /* Sem obra */
+        .pino-iniciar { background-color: #d9730d; box-shadow: 0 0 10px rgba(217, 115, 13, 0.6);} /* A Iniciar */
+        .pino-execucao { background-color: #0f7b6c; box-shadow: 0 0 10px rgba(15, 123, 108, 0.6);} /* Execução */
+        .pino-parada { background-color: #e03e3e; box-shadow: 0 0 10px rgba(224, 62, 62, 0.6); animation: pulsar 2s infinite;} /* Parada */
+
+        @keyframes pulsar {
+            0% { box-shadow: 0 0 0 0 rgba(224, 62, 62, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(224, 62, 62, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(224, 62, 62, 0); }
+        }
+
+        /* Popups Customizados */
+        .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid var(--border); padding: 0; }
+        .leaflet-popup-content { margin: 0; }
+        .leaflet-popup-tip-container { display: none; } 
+        
+        .popup-gft { padding: 15px; min-width: 220px; }
+        .popup-titulo { font-size: 1.1rem; font-weight: 600; color: var(--text-main); margin: 0 0 5px 0; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        .popup-sistema { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; margin: 0; padding-top: 5px; }
+        .popup-obra { margin-top: 10px; background: #f9f9f8; padding: 8px; border-radius: 4px; border-left: 3px solid var(--border); }
+        .btn-voltar { text-decoration: none; font-size: 1.2rem; transition: transform 0.2s; border-right: 1px solid var(--border); padding-right: 12px; }
+        .btn-voltar:hover { transform: scale(1.2); }
+        .titulo-container { display: flex; align-items: center; gap: 12px; }
+    </style>
+</head>
+<body>
+    
+    <div class="painel-flutuante">
+        <div class="titulo-container">
+            <a href="index.html" class="btn-voltar" title="Voltar ao Dashboard">⬅️</a>
+            <h1>🗺️ Visão Geográfica - GFT</h1>
+        </div>
+        <div class="status-banco" id="contadorLocais">Conectando ao banco...</div>
+    </div>
+
+    <div id="meuMapa"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDvj-9BlmWy2EpSC-XSFhOGOnqrQ8JYB3E",
+            authDomain: "painel-ets.firebaseapp.com",
+            databaseURL: "https://painel-ets-default-rtdb.firebaseio.com", 
+            projectId: "painel-ets"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const mapa = L.map('meuMapa', { zoomControl: false }).setView([-5.805, -35.208], 12); 
+        L.control.zoom({ position: 'bottomright' }).addTo(mapa); 
+        
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap | © CARTO'
+        }).addTo(mapa);
+
+        // Grupo de marcadores para podermos limpar e redesenhar facilmente
+        let marcadoresLayer = L.layerGroup().addTo(mapa);
+
+        let baseLocais = {};
+        let obrasAtivas = {};
+
+        // Escuta a base de Locais Fixos
+        db.ref('cardapioCoordenadas').on('value', (snapshot) => {
+            baseLocais = snapshot.val() || {};
+            renderizarMapa();
+        });
+
+        // Escuta os Serviços do GFT
+        db.ref('obrasCaern').on('value', (snapshot) => {
+            obrasAtivas = snapshot.val() || {};
+            renderizarMapa();
+        });
+
+        // Função principal que cruza os dados e desenha
+        function renderizarMapa() {
+            marcadoresLayer.clearLayers(); // Limpa os pinos antigos da tela
+            let contadorLocais = 0;
+            let contadorLocaisComObra = 0;
+
+            for (let idLocal in baseLocais) {
+                const local = baseLocais[idLocal];
+                let servicosDesteLocal = [];
+
+                // Procura em todos os encarregados se existe alguma obra neste ID de local
+                for (let encarregado in obrasAtivas) {
+                    obrasAtivas[encarregado].forEach(obra => {
+                        if (obra.dummy) return;
+                        if (obra.coordId === idLocal) {
+                            servicosDesteLocal.push({ ...obra, encarregado }); // Guarda a obra e quem tá fazendo
+                        }
+                    });
+                }
+
+                // Define a Cor do Pino baseada na gravidade do status
+                let classeCor = 'pino-cinza'; 
+                let temParada = servicosDesteLocal.some(s => s.status === 'Parada');
+                let temExecucao = servicosDesteLocal.some(s => s.status === 'Execucao');
+                let temIniciar = servicosDesteLocal.some(s => s.status === 'Iniciar');
+
+                if (temParada) classeCor = 'pino-parada';
+                else if (temExecucao) classeCor = 'pino-execucao';
+                else if (temIniciar) classeCor = 'pino-iniciar';
+
+                // Constrói a lista de obras para aparecer no Popup
+                let htmlObras = '';
+                if (servicosDesteLocal.length > 0) {
+                    contadorLocaisComObra++;
+                    servicosDesteLocal.forEach(s => {
+                        let corBorda = '#e9e9e7';
+                        let textoStatus = '';
+                        if(s.status === 'Parada') { corBorda = '#e03e3e'; textoStatus = '🔴 Parada'; }
+                        if(s.status === 'Execucao') { corBorda = '#0f7b6c'; textoStatus = '🟢 Em Execução'; }
+                        if(s.status === 'Iniciar') { corBorda = '#d9730d'; textoStatus = '🟠 A Iniciar'; }
+
+                        htmlObras += `
+                            <div class="popup-obra" style="border-left-color: ${corBorda};">
+                                <strong style="display:block; font-size:0.85rem; color:#333;">${s.servico}</strong>
+                                <span style="font-size:0.75rem; color:#666;">👷 ${s.encarregado} | ${textoStatus}</span>
+                            </div>
+                        `;
+                    });
+                } else {
+                    htmlObras = `<div style="margin-top: 10px; font-size: 0.8rem; color: #787774; font-style: italic;">Nenhuma obra ativa.</div>`;
+                }
+
+                // Monta o Popup Final
+                const htmlPopup = `
+                    <div class="popup-gft">
+                        <h3 class="popup-titulo">${local.nome}</h3>
+                        <p class="popup-sistema">SISTEMA: ${local.sistema}</p>
+                        ${htmlObras}
+                    </div>
+                `;
+
+                // Desenha no Mapa
+                const icone = L.divIcon({
+                    className: `icone-pino ${classeCor}`,
+                    iconSize: classeCor === 'pino-cinza' ? [12, 12] : [18, 18], // Pinos com obra ficam maiores
+                    iconAnchor: classeCor === 'pino-cinza' ? [6, 6] : [9, 9]
+                });
+
+                L.marker([local.lat, local.lng], {icon: icone})
+                    .bindPopup(htmlPopup, { offset: [0, -5] })
+                    .addTo(marcadoresLayer);
+                    
+                contadorLocais++;
+            }
+
+            // Atualiza o letreiro do topo
+            document.getElementById('contadorLocais').innerText = `${contadorLocais} mapeados | ${contadorLocaisComObra} com obras`;
+        }
+    </script>
+</body>
+</html>

@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Obras - CAERN</title>
+    <title>GFT - Gestão de frentes de trabalho</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="nav">
-        <a href="index.html">📺 Ver Dashboard (TV)</a>
+        <div class="nav-left">
+            <button class="btn-theme" onclick="alternarTema()" id="btnTheme" title="Modo Noturno/Claro">🌙</button>
+            <a href="index.html">📺 Dashboard </a>
+        </div>
+        <button class="btn-excel" onclick="exportarExcel()">📥 Exportar para Excel</button>
     </div>
 
     <h1>⚙️ Gerenciar Quadros</h1>
@@ -16,18 +20,17 @@
     <div class="admin-section">
         <h2>1. Adicionar Novo Encarregado</h2>
         <form id="formEncarregado">
-            <input type="text" id="nomeEncarregado" placeholder="Nome do Encarregado (ex: João Silva)" required>
+            <input type="text" id="nomeEncarregado" placeholder="Nome do Encarregado" required>
             <button type="submit">Criar Quadro</button>
         </form>
     </div>
 
     <div class="admin-section">
-        <h2>2. Atribuir / Editar Frente de Trabalho (Obra)</h2>
+        <h2>2. Atribuir / Editar Frente de Trabalho (Obra/Serviço)</h2>
         <form id="formServico">
-            <select id="selectEncarregado" required>
-                </select>
-            <input type="text" id="nomeServico" placeholder="Serviço (ex: Retirada de porta)" required>
-            <input type="text" id="nomeLocal" placeholder="Local (ex: Poço P-12, EEE Tirol)" required>
+            <select id="selectEncarregado" required></select>
+            <input type="text" id="nomeServico" placeholder="Serviço (separar por virgula)" required>
+            <input type="text" id="nomeLocal" placeholder="Local" required>
             
             <label for="dataLocal" style="font-size: 0.85rem; color: #787774; margin-top: 0.5rem; display: block;">Data de Início/Registro:</label>
             <input type="date" id="dataLocal" required>
@@ -38,14 +41,24 @@
                 <option value="Parada">Parada</option>
             </select>
             <input type="text" id="notaLocal" placeholder="Observação (opcional)">
+            
+            <label class="checkbox-container">
+                <input type="checkbox" id="urgenciaLocal">
+                🚨 Marcar como Urgência (Fica no topo)
+            </label>
+
             <button type="submit" id="btnSubmitServico">Adicionar Obra</button>
         </form>
     </div>
 
     <div class="admin-section">
         <h2>3. Editar / Remover Frentes Atuais</h2>
-        <div id="listaAdmin">
-            </div>
+        
+        <div class="busca-container">
+            <input type="text" id="buscaAdmin" placeholder="🔍 Buscar por Local ou Serviço..." onkeyup="renderizarAdmin()">
+        </div>
+
+        <div id="listaAdmin"></div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>

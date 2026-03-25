@@ -5,8 +5,7 @@ const firebaseConfig = {
     projectId: "painel-ets",
     storageBucket: "painel-ets.firebasestorage.app",
     messagingSenderId: "809999984863",
-    appId: "1:809999984863:web:251e244866c0b0debf616a",
-    measurementId: "G-Q2JN0HYXSP"
+    appId: "1:809999984863:web:251e244866c0b0debf616a"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -14,31 +13,64 @@ const db = firebase.database();
 
 let dados = {};
 let editando = null; 
+let filtroAtual = 'Todos'; 
+let ordemAtual = 'Antigo'; 
 
 // ==========================================
-// FUNÇÃO PARA CALCULAR DIAS
+// MODO NOTURNO (TEMA)
+// ==========================================
+function alternarTema() {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    localStorage.setItem('temaCaern', isDark ? 'escuro' : 'claro');
+    document.getElementById('btnTheme').innerText = isDark ? '☀️' : '🌙';
+}
+
+// Carrega o tema salvo ao abrir a página
+window.onload = () => {
+    if (localStorage.getItem('temaCaern') === 'escuro') {
+        document.body.classList.add('dark-mode');
+        const btn = document.getElementById('btnTheme');
+        if(btn) btn.innerText = '☀️';
+    }
+};
+
+// ==========================================
+// FUNÇÕES ÚTEIS
 // ==========================================
 function calcularDias(dataString) {
-    if (!dataString) return { formatada: '', dias: '' };
-    
+    if (!dataString) return { formatada: '', dias: '', diffDias: 0 };
     const [ano, mes, dia] = dataString.split('-');
     const dataServico = new Date(ano, mes - 1, dia);
-    
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    
-    const diffTempo = hoje - dataServico;
-    const diffDias = Math.floor(diffTempo / (1000 * 60 * 60 * 24));
-    
+    const diffDias = Math.floor((hoje - dataServico) / (1000 * 60 * 60 * 24));
     const dataFormatada = `${dia}/${mes}/${ano}`;
     let textoDias = "";
-    
     if (diffDias === 0) textoDias = "Hoje";
     else if (diffDias === 1) textoDias = "1 dia";
     else if (diffDias > 1) textoDias = `${diffDias} dias`;
     else if (diffDias < 0) textoDias = `Faltam ${Math.abs(diffDias)} dias`;
-    
-    return { formatada: dataFormatada, dias: textoDias };
+    return { formatada: dataFormatada, dias: textoDias, diffDias: diffDias };
+}
+
+function exportarExcel() {
+    let csv = "Encarregado;Local;Servico;Data;Dias;Status;Urgencia;Observacao\n";
+    for (const [encarregado, servicos] of Object.entries(dados)) {
+        servicos.forEach(item => {
+            if(item.dummy) return;
+            const infoData = calcularDias(item.data);
+            const urg = item.urgencia ? "Sim" : "Nao";
+            const nota = item.nota ? item.nota.replace(/;/g, ',') : "";
+            csv += `${encarregado};${item.local};${item.servico};${infoData.formatada};${infoData.dias};${item.status};${urg};${nota}\n`;
+        });
+    }
+    const blob = new Blob(["\uFEFF"+csv], {type: 'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Relatorio_CAERN_ETS.csv";
+    a.click();
 }
 
 // ==========================================
@@ -50,39 +82,71 @@ db.ref('obrasCaern').on('value', (snapshot) => {
     renderizarAdmin();
 });
 
+db.ref('ultimaAtualizacao').on('value', (snapshot) => {
+    const dataHora = snapshot.val();
+    const textoAtt = document.getElementById('ultimaAtualizacaoTexto');
+    if(textoAtt && dataHora) textoAtt.innerText = `Última atualização: ${dataHora}`;
+});
+
 function salvarDados() {
     db.ref('obrasCaern').set(dados);
+    const agora = new Date().toLocaleString('pt-BR');
+    db.ref('ultimaAtualizacao').set(agora);
 }
 
 // ==========================================
-// LÓGICA DA TV (Dashboard)
+// LÓGICA DA TV
 // ==========================================
+function atualizarFiltros() {
+    filtroAtual = document.getElementById('filtroStatus').value;
+    ordemAtual = document.getElementById('ordemData').value;
+    renderizarDashboard(); 
+}
+
 function renderizarDashboard() {
     const dashboard = document.getElementById('dashboard');
+    const statsContainer = document.getElementById('statsContainer');
     if (!dashboard) return; 
     
     dashboard.innerHTML = ''; 
+    let contagem = { Iniciar: 0, Execucao: 0, Parada: 0, Total: 0 };
 
-    for (const [encarregado, servicos] of Object.entries(dados)) {
+    for (const [encarregado, servicosOriginais] of Object.entries(dados)) {
+        let servicosFiltrados = servicosOriginais.filter(item => {
+            if(item.dummy) return false;
+            contagem[item.status]++;
+            contagem.Total++;
+            if (filtroAtual !== 'Todos' && item.status !== filtroAtual) return false;
+            return true;
+        });
+
+        servicosFiltrados.sort((a, b) => {
+            const dataA = new Date(a.data);
+            const dataB = new Date(b.data);
+            return ordemAtual === 'Antigo' ? dataA - dataB : dataB - dataA;
+        });
+
+        const urgentes = servicosFiltrados.filter(item => item.urgencia);
+        const normais = servicosFiltrados.filter(item => !item.urgencia);
+        const servicosFinais = [...urgentes, ...normais];
+
+        if (servicosFinais.length === 0) continue;
+
         const card = document.createElement('div');
         card.className = 'card';
-        
         let htmlServicos = '';
-        let temServico = false;
 
-        servicos.forEach(item => {
-            // Ignora o serviço fantasma que criamos para enganar o Firebase
-            if (item.dummy) return; 
-            
-            temServico = true;
+        servicosFinais.forEach(item => {
             const infoData = calcularDias(item.data);
-            const htmlData = item.data ? `<div class="data-info">📅 ${infoData.formatada} <span class="contador-dias">${infoData.dias}</span></div>` : '';
+            let classeAlerta = (item.status === 'Parada' && infoData.diffDias >= 10) ? 'alerta-vermelho' : '';
+            const badgeUrgencia = item.urgencia ? `<span class="tag-urgencia">Urgente</span>` : '';
+            const htmlData = item.data ? `<div class="data-info">📅 ${infoData.formatada} <span class="contador-dias ${classeAlerta}">${infoData.dias}</span></div>` : '';
 
             htmlServicos += `
                 <div class="servico-item">
                     <div class="servico-header">
                         <div style="flex: 1; padding-right: 10px;">
-                            <span><strong>${item.local}</strong> - ${item.servico}</span>
+                            <span><strong>${item.local}</strong> - ${item.servico} ${badgeUrgencia}</span>
                             ${htmlData}
                         </div>
                         <span class="status status-${item.status.toLowerCase()}">${item.status}</span>
@@ -92,22 +156,29 @@ function renderizarDashboard() {
             `;
         });
 
-        card.innerHTML = `
-            <h2>👷 ${encarregado}</h2>
-            <div class="servicos-lista">
-                ${temServico ? htmlServicos : '<div class="nota">Nenhuma frente de trabalho.</div>'}
-            </div>
-        `;
+        card.innerHTML = `<h2>👷 ${encarregado}</h2><div class="servicos-lista">${htmlServicos}</div>`;
         dashboard.appendChild(card);
+    }
+
+    if (statsContainer) {
+        statsContainer.innerHTML = `
+            <span>📋 Total: ${contagem.Total}</span>
+            <span>🚧 Em Execução: ${contagem.Execucao}</span>
+            <span>⏳ A Iniciar: ${contagem.Iniciar}</span>
+            <span style="color: #e03e3e;">⏸️ Paradas: ${contagem.Parada}</span>
+        `;
     }
 }
 
 // ==========================================
-// LÓGICA DO PC (Admin CRUD)
+// LÓGICA DO PC (Com Busca)
 // ==========================================
 function renderizarAdmin() {
     const select = document.getElementById('selectEncarregado');
     const lista = document.getElementById('listaAdmin');
+    const inputBusca = document.getElementById('buscaAdmin');
+    const termoBusca = inputBusca ? inputBusca.value.toLowerCase().trim() : '';
+
     if (!select || !lista) return; 
 
     select.innerHTML = '<option value="">Selecione...</option>';
@@ -118,17 +189,28 @@ function renderizarAdmin() {
     lista.innerHTML = '';
     for (const [encarregado, servicos] of Object.entries(dados)) {
         let htmlServicos = '';
+        let encontrouNaBusca = false;
         
         servicos.forEach((item, index) => {
-            if (item.dummy) return; // Esconde o fantasma no admin também
+            if (item.dummy) return; 
+
+            // Filtro de Busca
+            if (termoBusca) {
+                const txtLocal = item.local.toLowerCase();
+                const txtServ = item.servico.toLowerCase();
+                if (!txtLocal.includes(termoBusca) && !txtServ.includes(termoBusca)) return;
+            }
+
+            encontrouNaBusca = true;
 
             const infoData = calcularDias(item.data);
+            const badgeUrg = item.urgencia ? '🚨' : '';
             const txtData = item.data ? `| 📅 ${infoData.formatada} (${infoData.dias})` : '';
 
             htmlServicos += `
                 <div class="servico-item" style="flex-direction: row; justify-content: space-between; align-items: center;">
                     <div style="flex: 1;">
-                        <strong>${item.local}</strong> - ${item.servico} <span style="font-size: 0.8rem; color: #787774; margin-left: 5px;">${txtData}</span>
+                        <strong>${badgeUrg} ${item.local}</strong> - ${item.servico} <span style="font-size: 0.8rem; color: #787774; margin-left: 5px;">${txtData}</span>
                         <div style="margin-top: 5px;"><span class="status status-${item.status.toLowerCase()}">${item.status}</span></div>
                     </div>
                     <div class="acoes-btn">
@@ -138,6 +220,9 @@ function renderizarAdmin() {
                 </div>
             `;
         });
+
+        // Se estiver buscando e não achou nada neste encarregado, oculta o quadro dele
+        if (termoBusca && !encontrouNaBusca) continue;
 
         lista.innerHTML += `
             <div class="card" style="margin-bottom: 1rem;">
@@ -158,7 +243,6 @@ function adicionarEncarregado(event) {
     event.preventDefault();
     const nome = document.getElementById('nomeEncarregado').value.trim();
     if (nome && !dados[nome]) {
-        // Colocamos um objeto fantasma "dummy" para o Firebase não apagar o encarregado
         dados[nome] = [{ dummy: true }]; 
         salvarDados();
         document.getElementById('nomeEncarregado').value = '';
@@ -173,22 +257,20 @@ function adicionarOuEditarServico(event) {
     const data = document.getElementById('dataLocal').value; 
     const status = document.getElementById('statusLocal').value;
     const nota = document.getElementById('notaLocal').value.trim();
+    const urgencia = document.getElementById('urgenciaLocal').checked; 
 
     if (encarregado && servico && local && data) {
         if (editando) {
-            dados[editando.encarregado][editando.index] = { servico, local, data, status, nota };
+            dados[editando.encarregado][editando.index] = { servico, local, data, status, nota, urgencia };
             editando = null;
             document.getElementById('btnSubmitServico').innerText = 'Adicionar Obra';
             document.getElementById('selectEncarregado').disabled = false;
         } else {
             if(!dados[encarregado]) dados[encarregado] = [];
-            
-            // Se for a primeira obra, apaga o fantasma
             if(dados[encarregado].length === 1 && dados[encarregado][0].dummy) {
                 dados[encarregado] = [];
             }
-
-            dados[encarregado].push({ servico, local, data, status, nota });
+            dados[encarregado].push({ servico, local, data, status, nota, urgencia });
         }
 
         salvarDados();
@@ -197,15 +279,15 @@ function adicionarOuEditarServico(event) {
         document.getElementById('nomeLocal').value = '';
         document.getElementById('dataLocal').value = '';
         document.getElementById('notaLocal').value = '';
+        document.getElementById('urgenciaLocal').checked = false; 
         document.getElementById('statusLocal').value = 'Iniciar';
     } else {
-        alert("Preencha todos os campos obrigatórios, incluindo a data!");
+        alert("Preencha todos os campos obrigatórios!");
     }
 }
 
 function prepararEdicao(encarregado, index) {
     const item = dados[encarregado][index];
-    
     document.getElementById('selectEncarregado').value = encarregado;
     document.getElementById('selectEncarregado').disabled = true; 
     document.getElementById('nomeServico').value = item.servico;
@@ -213,6 +295,7 @@ function prepararEdicao(encarregado, index) {
     document.getElementById('dataLocal').value = item.data || ''; 
     document.getElementById('statusLocal').value = item.status;
     document.getElementById('notaLocal').value = item.nota || '';
+    document.getElementById('urgenciaLocal').checked = item.urgencia || false; 
     
     document.getElementById('btnSubmitServico').innerText = 'Salvar Edição';
     editando = { encarregado, index };
@@ -221,12 +304,9 @@ function prepararEdicao(encarregado, index) {
 
 function deletarServico(encarregado, index) {
     dados[encarregado].splice(index, 1);
-    
-    // Se apagou todas as obras, coloca o fantasma de volta pra ele não sumir
     if (dados[encarregado].length === 0) {
         dados[encarregado] = [{ dummy: true }];
     }
-    
     salvarDados();
 }
 
@@ -239,6 +319,5 @@ function deletarEncarregado(encarregado) {
 
 const formEnc = document.getElementById('formEncarregado');
 if (formEnc) formEnc.addEventListener('submit', adicionarEncarregado);
-
 const formServ = document.getElementById('formServico');
 if (formServ) formServ.addEventListener('submit', adicionarOuEditarServico);

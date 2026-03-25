@@ -3,19 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Obras ETS - CAERN</title>
+    <title>GFT - Gestão de frentes de trabalho</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="nav">
-        <a href="admin.html">⚙️ Ir para Gerenciamento (PC)</a>
+        <div class="nav-left">
+            <button class="btn-theme" onclick="alternarTema()" id="btnTheme" title="Modo Noturno/Claro">🌙</button>
+            <a href="admin.html">⚙️ Painel de gerenciamento</a>
+        </div>
     </div>
     
-    <h1>🚧 Frentes de Trabalho - Contrato ETS</h1>
+    <h1>🚧 GFT - Gestão de frentes de trabalho</h1>
     
+    <div class="painel-topo">
+        <div class="estatisticas" id="statsContainer">
+            </div>
+        <div class="controles-filtro">
+            <label for="filtroStatus">Filtrar:</label>
+            <select id="filtroStatus" onchange="atualizarFiltros()">
+                <option value="Todos">Todos</option>
+                <option value="Iniciar">A Iniciar</option>
+                <option value="Execucao">Em Execução</option>
+                <option value="Parada">Parada</option>
+            </select>
+            
+            <label for="ordemData">Ordem:</label>
+            <select id="ordemData" onchange="atualizarFiltros()">
+                <option value="Antigo">Mais Antigo Primeiro</option>
+                <option value="Recente">Mais Recente Primeiro</option>
+            </select>
+        </div>
+    </div>
+
     <div id="dashboard" class="dashboard-grid">
         </div>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+
+    <div id="ultimaAtualizacaoTexto" class="rodape-att">Carregando dados...</div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="app.js"></script>
 </body>

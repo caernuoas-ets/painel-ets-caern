@@ -11,7 +11,7 @@ O sistema opera em tempo real, utilizando banco de dados em nuvem (BaaS), e foi
 projetado para funcionar em duas frentes: uma visão tática de monitoramento em 
 telas grandes (Dashboard) e um ambiente de gestão operacional (Admin).
 
-Desenvolvedor: Kauã (UOAS - CAERN)
+Desenvolvedor: Kauã Carlos - @kauacsilva
 Versão Atual: 3.1
 Tecnologias: HTML5, CSS3, Vanilla JavaScript, Firebase Realtime Database, Leaflet GIS.
 

@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Obras - GFT</title>
+    <title>GFT - Painel de gerenciamento</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚧</text></svg>">
 </head>
 <body>
     <div class="nav">
         <div class="nav-left">
             <button class="btn-theme" onclick="alternarTema()" id="btnTheme" title="Modo Noturno/Claro">🌙</button>
-            <a href="index.html">📺 Ver Dashboard (TV)</a>
-            <a href="mapa.html">🗺️ Ver Mapa Interativo</a>
+            <a href="index.html">📺 Ver Dashboard </a>
+            <a href="mapa.html">🗺️ Ver Mapeamento </a>
         </div>
         <button class="btn-excel" onclick="exportarExcel()">📥 Exportar Excel</button>
     </div>
@@ -21,7 +22,7 @@
     <div class="admin-section">
         <h2>1. Adicionar Novo Encarregado</h2>
         <form id="formEncarregado">
-            <input type="text" id="nomeEncarregado" placeholder="Nome do Encarregado (ex: João Silva)" required>
+            <input type="text" id="nomeEncarregado" placeholder="Nome do Encarregado" required>
             <button type="submit">Criar Quadro</button>
         </form>
     </div>
@@ -30,11 +31,12 @@
         <h2>2. Atribuir / Editar Frente de Trabalho (Obra)</h2>
         <form id="formServico">
             <select id="selectEncarregado" required></select>
-            <input type="text" id="nomeServico" placeholder="Serviço (ex: Retirada de porta)" required>
+            <input type="text" id="nomeServico" placeholder="Serviço (ex: Demolição, Chapisco)" required>
             
-            <input type="text" id="nomeLocal" placeholder="Local (Texto Livre - ex: Poço P-12)" required>
+            <input type="text" id="nomeLocal" placeholder="Local" required>
             
             <label for="selectCoordenada" style="font-size: 0.85rem; color: #787774; margin-top: 0.5rem; display: block;">📍 Vincular ao Mapa (Opcional):</label>
+            <input type="text" id="buscaCoordenada" placeholder="🔍 Filtrar lista de locais..." onkeyup="preencherSelectCoordenadas()" style="margin-bottom: 5px;">
             <select id="selectCoordenada">
                 <option value="">Não vincular a nenhum ponto no mapa</option>
                 </select>
@@ -69,5 +71,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="app.js"></script>
+    <footer style="text-align: center; padding: 20px; color: #787774; font-size: 0.85rem; margin-top: 2rem; border-top: 1px solid #e9e9e7;">
+    GFT v3.1 © 2026 | Desenvolvido por Kauã Carlos - @kauacsilva.
+</footer>
 </body>
 </html>

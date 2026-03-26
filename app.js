@@ -98,23 +98,32 @@ function salvarDados() {
     db.ref('ultimaAtualizacao').set(agora);
 }
 
-// Preenche a lista suspensa com os endereços em ordem alfabética
+// Preenche a lista suspensa com os endereços em ordem alfabética (AGORA COM FILTRO)
 function preencherSelectCoordenadas() {
     const select = document.getElementById('selectCoordenada');
+    const inputFiltro = document.getElementById('buscaCoordenada');
     if (!select) return;
     
-    const valorAtual = select.value; // Guarda o que estava selecionado pra não piscar
+    // Lê o que foi digitado na caixinha de busca
+    const termo = inputFiltro ? inputFiltro.value.toLowerCase().trim() : '';
+    const valorAtual = select.value; 
+    
     select.innerHTML = '<option value="">📍 Não vincular a nenhum ponto no mapa</option>';
     
-    // Converte objeto em array pra poder ordenar por nome (A-Z)
     const lista = Object.entries(cardapioCoord).map(([id, val]) => ({ id, ...val }));
     lista.sort((a, b) => a.tituloCompleto.localeCompare(b.tituloCompleto));
 
+    // Só adiciona na lista se o nome contiver o que foi digitado
     lista.forEach(item => {
-        select.innerHTML += `<option value="${item.id}">${item.tituloCompleto}</option>`;
+        if (item.tituloCompleto.toLowerCase().includes(termo)) {
+            select.innerHTML += `<option value="${item.id}">${item.tituloCompleto}</option>`;
+        }
     });
     
-    select.value = valorAtual;
+    // Tenta manter a opção selecionada para não piscar
+    if (select.querySelector(`option[value="${valorAtual}"]`)) {
+        select.value = valorAtual;
+    }
 }
 
 // ==========================================
@@ -274,7 +283,7 @@ function adicionarEncarregado(event) {
 
 function adicionarOuEditarServico(event) {
     event.preventDefault();
-    const encarregado = document.getElementById('selectEncarregado').value;
+    const encarregadoNovo = document.getElementById('selectEncarregado').value;
     const servico = document.getElementById('nomeServico').value.trim();
     const local = document.getElementById('nomeLocal').value.trim();
     const data = document.getElementById('dataLocal').value; 
@@ -285,7 +294,7 @@ function adicionarOuEditarServico(event) {
     // Captura o ID do mapa selecionado
     const coordId = document.getElementById('selectCoordenada').value;
 
-    if (encarregado && servico && local && data) {
+    if (encarregadoNovo && servico && local && data) {
         
         // Monta o objeto que vai pro banco
         const objObra = { servico, local, data, status, nota, urgencia };
@@ -299,16 +308,33 @@ function adicionarOuEditarServico(event) {
         }
 
         if (editando) {
-            dados[editando.encarregado][editando.index] = objObra;
+            const encarregadoAntigo = editando.encarregado;
+            const indexAntigo = editando.index;
+
+            if (encarregadoAntigo === encarregadoNovo) {
+                // Continua com o mesmo encarregado, só atualiza os dados
+                dados[encarregadoAntigo][indexAntigo] = objObra;
+            } else {
+                // TROCOU DE ENCARREGADO! 
+                // 1. Adiciona na lista do novo encarregado
+                if(!dados[encarregadoNovo]) dados[encarregadoNovo] = [];
+                if(dados[encarregadoNovo].length === 1 && dados[encarregadoNovo][0].dummy) dados[encarregadoNovo] = [];
+                dados[encarregadoNovo].push(objObra);
+
+                // 2. Remove da lista do encarregado antigo
+                dados[encarregadoAntigo].splice(indexAntigo, 1);
+                if (dados[encarregadoAntigo].length === 0) {
+                    dados[encarregadoAntigo] = [{ dummy: true }]; // Mantém a pasta viva se esvaziar
+                }
+            }
+
             editando = null;
             document.getElementById('btnSubmitServico').innerText = 'Adicionar Obra';
-            document.getElementById('selectEncarregado').disabled = false;
         } else {
-            if(!dados[encarregado]) dados[encarregado] = [];
-            if(dados[encarregado].length === 1 && dados[encarregado][0].dummy) {
-                dados[encarregado] = [];
-            }
-            dados[encarregado].push(objObra);
+            // Nova obra normal
+            if(!dados[encarregadoNovo]) dados[encarregadoNovo] = [];
+            if(dados[encarregadoNovo].length === 1 && dados[encarregadoNovo][0].dummy) dados[encarregadoNovo] = [];
+            dados[encarregadoNovo].push(objObra);
         }
 
         salvarDados();
@@ -329,7 +355,8 @@ function adicionarOuEditarServico(event) {
 function prepararEdicao(encarregado, index) {
     const item = dados[encarregado][index];
     document.getElementById('selectEncarregado').value = encarregado;
-    document.getElementById('selectEncarregado').disabled = true; 
+    // O select do encarregado não fica mais desabilitado, permitindo a troca!
+    
     document.getElementById('nomeServico').value = item.servico;
     document.getElementById('nomeLocal').value = item.local;
     document.getElementById('dataLocal').value = item.data || ''; 
@@ -341,7 +368,7 @@ function prepararEdicao(encarregado, index) {
     document.getElementById('selectCoordenada').value = item.coordId || ''; 
     
     document.getElementById('btnSubmitServico').innerText = 'Salvar Edição';
-    editando = { encarregado, index };
+    editando = { encarregado, index }; // Guarda quem era o dono original da obra
     window.scrollTo(0, document.getElementById('formServico').offsetTop - 20);
 }
 

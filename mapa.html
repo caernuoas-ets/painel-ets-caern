@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GFT - Mapeamento das frentes</title>
+    <title>GFT - Mapa de Infraestrutura</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
@@ -39,7 +39,7 @@
         .btn-theme-mapa:hover { transform: scale(1.1); }
         .status-banco { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; background: var(--bg-color); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border);}
 
-        /* Novos Filtros */
+        /* Filtros Dinâmicos */
         .linha-filtros { display: flex; gap: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
         .linha-filtros select { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main); font-size: 0.9rem; outline: none;}
 
@@ -64,7 +64,6 @@
         .popup-sistema { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; margin: 0; padding-top: 5px; }
         .popup-obra { margin-top: 10px; background: var(--popup-bg); padding: 8px; border-radius: 4px; border-left: 3px solid var(--border); }
     </style>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚧</text></svg>">
 </head>
 <body>
     
@@ -72,7 +71,7 @@
         <div class="linha-topo">
             <div class="titulo-container">
                 <a href="index.html" class="btn-voltar" title="Voltar ao Dashboard">⬅️</a>
-                <h1>🗺️ GFT - Mapeamento das frentes </h1>
+                <h1>🗺️ Visão Geográfica - GFT</h1>
             </div>
             <div class="controles-direita">
                 <button class="btn-theme-mapa" onclick="alternarTemaMapa()" id="btnThemeMapa" title="Alternar Modo Escuro">🌙</button>
@@ -82,8 +81,8 @@
         
         <div class="linha-filtros">
             <select id="filtroVisibilidade" onchange="renderizarMapa()">
-                <option value="Todos">Mostrar tudo</option>
-                <option value="ApenasObras">Ocultar locais sem serviço</option>
+                <option value="Todos">Mostrar toda a Infraestrutura</option>
+                <option value="ApenasObras">Ocultar locais sem obra (Somente Ativos)</option>
             </select>
             <select id="filtroEncarregado" onchange="renderizarMapa()">
                 <option value="Todos">Todos os Encarregados</option>
@@ -107,30 +106,32 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Mapa focado na Arena das Dunas (Excluindo ZN)
-        const mapa = L.map('meuMapa', { zoomControl: false }).setView([-5.827, -35.212], 13); 
+        // 1. Mapa Base: Agora fixo no estilo Voyager (Claro)
+        const mapa = L.map('meuMapa', { zoomControl: false }).setView([-5.827, -35.212], 12); 
         L.control.zoom({ position: 'bottomright' }).addTo(mapa); 
-        
-        let camadaAtualMapa;
-        const linkClaro = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-        const linkEscuro = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap | © CARTO' }).addTo(mapa);
 
-        function aplicarTemaMapa(isDark) {
-            if (camadaAtualMapa) { mapa.removeLayer(camadaAtualMapa); }
-            camadaAtualMapa = L.tileLayer(isDark ? linkEscuro : linkClaro, { attribution: '© OpenStreetMap | © CARTO' }).addTo(mapa);
-            if (isDark) { document.body.classList.add('dark-mode'); document.getElementById('btnThemeMapa').innerText = '☀️'; } 
-            else { document.body.classList.remove('dark-mode'); document.getElementById('btnThemeMapa').innerText = '🌙'; }
+        // 2. Tema UI: Altera apenas os elementos da interface (Painéis, Popups), não o mapa
+        function aplicarTemaUI(isDark) {
+            if (isDark) { 
+                document.body.classList.add('dark-mode'); 
+                document.getElementById('btnThemeMapa').innerText = '☀️'; 
+            } else { 
+                document.body.classList.remove('dark-mode'); 
+                document.getElementById('btnThemeMapa').innerText = '🌙'; 
+            }
         }
 
         function alternarTemaMapa() {
             const isDark = !document.body.classList.contains('dark-mode');
             localStorage.setItem('temaCaern', isDark ? 'escuro' : 'claro'); 
-            aplicarTemaMapa(isDark);
+            aplicarTemaUI(isDark);
         }
 
         const temaSalvo = localStorage.getItem('temaCaern') === 'escuro';
-        aplicarTemaMapa(temaSalvo);
+        aplicarTemaUI(temaSalvo);
 
+        // 3. Camadas e Dados
         let marcadoresLayer = L.layerGroup().addTo(mapa);
         let baseLocais = {};
         let obrasAtivas = {};
@@ -142,7 +143,6 @@
             renderizarMapa(); 
         });
 
-        // Alimenta a lista suspensa de encarregados no mapa
         function atualizarListaEncarregados() {
             const select = document.getElementById('filtroEncarregado');
             const valorAtual = select.value;
@@ -150,7 +150,7 @@
             for (let encarregado in obrasAtivas) {
                 select.innerHTML += `<option value="${encarregado}">${encarregado}</option>`;
             }
-            select.value = valorAtual; // Mantém a seleção se houver
+            select.value = valorAtual; 
         }
 
         function renderizarMapa() {
@@ -166,7 +166,6 @@
                 contadorMapeados++;
                 let servicosDesteLocal = [];
 
-                // Puxa as obras, respeitando o filtro de encarregado
                 for (let encarregado in obrasAtivas) {
                     if (filtroEnc !== 'Todos' && encarregado !== filtroEnc) continue;
 
@@ -178,9 +177,8 @@
                     });
                 }
 
-                // Lógica do filtro de visibilidade (Limpar tela)
                 if (visibilidade === 'ApenasObras' && servicosDesteLocal.length === 0) {
-                    continue; // Pula o desenho deste pino
+                    continue; 
                 }
 
                 let classeCor = 'pino-cinza'; 
@@ -226,9 +224,14 @@
                     iconAnchor: classeCor === 'pino-cinza' ? [6, 6] : [9, 9]
                 });
 
-                L.marker([local.lat, local.lng], {icon: icone})
+                const marcador = L.marker([local.lat, local.lng], {icon: icone})
                     .bindPopup(htmlPopup, { offset: [0, -5] })
                     .addTo(marcadoresLayer);
+                
+                // Abre o popup ao passar o mouse
+                marcador.on('mouseover', function (e) {
+                    this.openPopup();
+                });
                     
                 contadorMostrados++;
             }

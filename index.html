@@ -10,6 +10,7 @@
 <body>
     <div class="nav">
         <div class="nav-left">
+            <button class="btn-delete" onclick="fazerLogout()" style="margin-top:0; border:none; padding-left:15px;">Sair do Sistema</button>
             <button class="btn-theme" onclick="alternarTema()" id="btnTheme" title="Modo Noturno/Claro">🌙</button>
             <a href="admin.html">⚙️ Ir para Gerenciamento </a>
             <a href="mapa.html">🗺️ Ver Mapeamento</a>
@@ -44,10 +45,10 @@
     <div id="ultimaAtualizacaoTexto" class="rodape-att">Carregando dados...</div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script> <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="app.js"></script>
     <footer style="text-align: center; padding: 20px; color: #787774; font-size: 0.85rem; margin-top: 2rem; border-top: 1px solid #e9e9e7;">
-    GFT v3.1 © 2026 | Desenvolvido por Kauã Carlos - @kauacsilva.
+    GFT v4.0 © 2026 | Desenvolvido por Kauã Carlos- @kauacsilva
 </footer>
 </body>
 </html>

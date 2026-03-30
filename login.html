@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - GFT CAERN</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚧</text></svg>">
+    <style>
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: var(--bg-color); }
+        .login-card { background: var(--card-bg); padding: 2.5rem 2rem; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid var(--border); width: 100%; max-width: 400px; text-align: center; }
+        .login-card h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .login-card p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
+        .login-card input { width: 100%; box-sizing: border-box; margin-bottom: 1rem; padding: 0.8rem; }
+        .login-card button { width: 100%; padding: 0.8rem; max-width: 100%; background-color: #0f7b6c; font-size: 1rem; }
+        .login-card button:hover { background-color: #0b5a4f; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1>🚧 GFT - CAERN</h1>
+        <p>Acesso restrito à equipa operacional.</p>
+        <form onsubmit="fazerLogin(event)">
+            <input type="email" id="emailLogin" placeholder="E-mail da equipe" required>
+            <input type="password" id="senhaLogin" placeholder="Senha" required>
+            <button type="submit">Entrar no Sistema</button>
+        </form>
+    </div>
+
+   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script> <script src="app.js"></script>
+</body>
+</html>

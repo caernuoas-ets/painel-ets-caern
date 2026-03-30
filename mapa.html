@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GFT - Mapa de Infraestrutura</title>
+    <title>GFT - Mapeamento das Frentes</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
@@ -63,7 +63,12 @@
         .popup-titulo { font-size: 1.1rem; font-weight: 600; margin: 0 0 5px 0; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
         .popup-sistema { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; margin: 0; padding-top: 5px; }
         .popup-obra { margin-top: 10px; background: var(--popup-bg); padding: 8px; border-radius: 4px; border-left: 3px solid var(--border); }
+        
+        /* Botão Mapa */
+        .btn-maps { display: block; text-align: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); color: #1a73e8; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+        .btn-maps:hover { text-decoration: underline; }
     </style>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚧</text></svg>">
 </head>
 <body>
     
@@ -71,7 +76,7 @@
         <div class="linha-topo">
             <div class="titulo-container">
                 <a href="index.html" class="btn-voltar" title="Voltar ao Dashboard">⬅️</a>
-                <h1>🗺️ Visão Geográfica - GFT</h1>
+                <h1>🗺️ GFT - Mapeamento das Frentes</h1>
             </div>
             <div class="controles-direita">
                 <button class="btn-theme-mapa" onclick="alternarTemaMapa()" id="btnThemeMapa" title="Alternar Modo Escuro">🌙</button>
@@ -81,12 +86,12 @@
         
         <div class="linha-filtros">
             <select id="filtroVisibilidade" onchange="renderizarMapa()">
-                <option value="Todos">Mostrar toda a Infraestrutura</option>
-                <option value="ApenasObras">Ocultar locais sem obra (Somente Ativos)</option>
+                <option value="Todos">Mostrar tudo</option>
+                <option value="ApenasObras">Ocultar locais sem serviço</option>
             </select>
             <select id="filtroEncarregado" onchange="renderizarMapa()">
                 <option value="Todos">Todos os Encarregados</option>
-                </select>
+            </select>
         </div>
     </div>
 
@@ -94,7 +99,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script> <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
         const firebaseConfig = {
@@ -105,51 +110,68 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const auth = firebase.auth(); // NOVO
 
-        // 1. Mapa Base: Agora fixo no estilo Voyager (Claro)
-        const mapa = L.map('meuMapa', { zoomControl: false }).setView([-5.827, -35.212], 12); 
+        // NOVO: Proteção do Mapa
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                window.location.replace('login.html');
+            } else {
+                carregarDadosMapa(); // Só carrega se estiver logado
+            }
+        });
+
+        // O resto do código do Leaflet
+        const mapa = L.map('meuMapa', { zoomControl: false }).setView([-5.827, -35.212], 13); 
         L.control.zoom({ position: 'bottomright' }).addTo(mapa); 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap | © CARTO' }).addTo(mapa);
 
-        // 2. Tema UI: Altera apenas os elementos da interface (Painéis, Popups), não o mapa
         function aplicarTemaUI(isDark) {
-            if (isDark) { 
-                document.body.classList.add('dark-mode'); 
-                document.getElementById('btnThemeMapa').innerText = '☀️'; 
-            } else { 
-                document.body.classList.remove('dark-mode'); 
-                document.getElementById('btnThemeMapa').innerText = '🌙'; 
-            }
+            if (isDark) { document.body.classList.add('dark-mode'); document.getElementById('btnThemeMapa').innerText = '☀️'; } 
+            else { document.body.classList.remove('dark-mode'); document.getElementById('btnThemeMapa').innerText = '🌙'; }
         }
-
         function alternarTemaMapa() {
             const isDark = !document.body.classList.contains('dark-mode');
             localStorage.setItem('temaCaern', isDark ? 'escuro' : 'claro'); 
             aplicarTemaUI(isDark);
         }
+        aplicarTemaUI(localStorage.getItem('temaCaern') === 'escuro');
 
-        const temaSalvo = localStorage.getItem('temaCaern') === 'escuro';
-        aplicarTemaUI(temaSalvo);
+        let popupCadastro = L.popup();
+        mapa.on('click', function(e) {
+            const lat = e.latlng.lat.toFixed(6); const lng = e.latlng.lng.toFixed(6);
+            const htmlForm = `
+                <div class="popup-gft" style="min-width: 200px; padding-bottom: 5px;">
+                    <h3 class="popup-titulo" style="font-size: 1rem;">📍 Cadastrar Novo Local</h3>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; margin-top: 0;">Lat: ${lat} <br> Lng: ${lng}</p>
+                    <input type="text" id="novoNomeLocal" placeholder="Nome" style="width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-color); color: var(--text-main);">
+                    <input type="text" id="novoComplementoLocal" placeholder="Complemento" style="width: 100%; box-sizing: border-box; margin-bottom: 12px; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-color); color: var(--text-main);">
+                    <button onclick="salvarNovoLocal(${lat}, ${lng})" style="width: 100%; padding: 8px; background: #0f7b6c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Guardar na Base</button>
+                </div>`;
+            popupCadastro.setLatLng(e.latlng).setContent(htmlForm).openOn(mapa);
+        });
 
-        // 3. Camadas e Dados
+        window.salvarNovoLocal = function(lat, lng) {
+            const nome = document.getElementById('novoNomeLocal').value.trim();
+            const complemento = document.getElementById('novoComplementoLocal').value.trim();
+            if(!nome || !complemento) return alert('Preencha os campos!');
+            db.ref('cardapioCoordenadas/coord_' + Date.now()).set({nome: nome, sistema: complemento, tituloCompleto: `${nome} - ${complemento}`, lat: lat, lng: lng}).then(() => mapa.closePopup());
+        };
+
         let marcadoresLayer = L.layerGroup().addTo(mapa);
         let baseLocais = {};
         let obrasAtivas = {};
 
-        db.ref('cardapioCoordenadas').on('value', (snapshot) => { baseLocais = snapshot.val() || {}; renderizarMapa(); });
-        db.ref('obrasCaern').on('value', (snapshot) => { 
-            obrasAtivas = snapshot.val() || {}; 
-            atualizarListaEncarregados();
-            renderizarMapa(); 
-        });
+        // Função isolada para aguardar o login
+        function carregarDadosMapa() {
+            db.ref('cardapioCoordenadas').on('value', (snapshot) => { baseLocais = snapshot.val() || {}; renderizarMapa(); });
+            db.ref('obrasCaern').on('value', (snapshot) => { obrasAtivas = snapshot.val() || {}; atualizarListaEncarregados(); renderizarMapa(); });
+        }
 
         function atualizarListaEncarregados() {
-            const select = document.getElementById('filtroEncarregado');
-            const valorAtual = select.value;
+            const select = document.getElementById('filtroEncarregado'); const valorAtual = select.value;
             select.innerHTML = '<option value="Todos">Todos os Encarregados</option>';
-            for (let encarregado in obrasAtivas) {
-                select.innerHTML += `<option value="${encarregado}">${encarregado}</option>`;
-            }
+            for (let encarregado in obrasAtivas) select.innerHTML += `<option value="${encarregado}">${encarregado}</option>`;
             select.value = valorAtual; 
         }
 
@@ -157,85 +179,43 @@
             marcadoresLayer.clearLayers();
             const visibilidade = document.getElementById('filtroVisibilidade').value;
             const filtroEnc = document.getElementById('filtroEncarregado').value;
-            
-            let contadorMapeados = 0;
             let contadorMostrados = 0;
 
             for (let idLocal in baseLocais) {
                 const local = baseLocais[idLocal];
-                contadorMapeados++;
                 let servicosDesteLocal = [];
 
                 for (let encarregado in obrasAtivas) {
                     if (filtroEnc !== 'Todos' && encarregado !== filtroEnc) continue;
-
-                    obrasAtivas[encarregado].forEach(obra => {
-                        if (obra.dummy) return;
-                        if (obra.coordId === idLocal) {
-                            servicosDesteLocal.push({ ...obra, encarregado }); 
-                        }
-                    });
+                    obrasAtivas[encarregado].forEach(obra => { if (!obra.dummy && obra.coordId === idLocal) servicosDesteLocal.push({ ...obra, encarregado }); });
                 }
 
-                if (visibilidade === 'ApenasObras' && servicosDesteLocal.length === 0) {
-                    continue; 
-                }
+                if (visibilidade === 'ApenasObras' && servicosDesteLocal.length === 0) continue; 
 
                 let classeCor = 'pino-cinza'; 
-                let temParada = servicosDesteLocal.some(s => s.status === 'Parada');
-                let temExecucao = servicosDesteLocal.some(s => s.status === 'Execucao');
-                let temIniciar = servicosDesteLocal.some(s => s.status === 'Iniciar');
-
-                if (temParada) classeCor = 'pino-parada';
-                else if (temExecucao) classeCor = 'pino-execucao';
-                else if (temIniciar) classeCor = 'pino-iniciar';
+                if (servicosDesteLocal.some(s => s.status === 'Parada')) classeCor = 'pino-parada';
+                else if (servicosDesteLocal.some(s => s.status === 'Execucao')) classeCor = 'pino-execucao';
+                else if (servicosDesteLocal.some(s => s.status === 'Iniciar')) classeCor = 'pino-iniciar';
 
                 let htmlObras = '';
                 if (servicosDesteLocal.length > 0) {
                     servicosDesteLocal.forEach(s => {
-                        let corBorda = 'var(--border)';
-                        let textoStatus = '';
-                        if(s.status === 'Parada') { corBorda = '#e03e3e'; textoStatus = '🔴 Parada'; }
-                        if(s.status === 'Execucao') { corBorda = '#0f7b6c'; textoStatus = '🟢 Em Execução'; }
-                        if(s.status === 'Iniciar') { corBorda = '#d9730d'; textoStatus = '🟠 A Iniciar'; }
-
-                        htmlObras += `
-                            <div class="popup-obra" style="border-left-color: ${corBorda};">
-                                <strong style="display:block; font-size:0.85rem;">${s.servico}</strong>
-                                <span style="font-size:0.75rem; color:var(--text-muted);">👷 ${s.encarregado} | ${textoStatus}</span>
-                            </div>
-                        `;
+                        let corBorda = s.status === 'Parada' ? '#e03e3e' : (s.status === 'Execucao' ? '#0f7b6c' : '#d9730d');
+                        let textoStatus = s.status === 'Parada' ? '🔴 Parada' : (s.status === 'Execucao' ? '🟢 Em Execução' : '🟠 A Iniciar');
+                        htmlObras += `<div class="popup-obra" style="border-left-color: ${corBorda};"><strong style="display:block; font-size:0.85rem;">${s.servico}</strong><span style="font-size:0.75rem; color:var(--text-muted);">👷 ${s.encarregado} | ${textoStatus}</span></div>`;
                     });
                 } else {
-                    htmlObras = `<div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">Nenhuma obra ativa.</div>`;
+                    htmlObras = `<div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">Nenhum serviço ativo.</div>`;
                 }
 
-                const htmlPopup = `
-                    <div class="popup-gft">
-                        <h3 class="popup-titulo">${local.nome}</h3>
-                        <p class="popup-sistema">SISTEMA: ${local.sistema}</p>
-                        ${htmlObras}
-                    </div>
-                `;
+                const linkMaps = `http://googleusercontent.com/maps.google.com/maps?q=${local.lat},${local.lng}`;
+                const htmlPopup = `<div class="popup-gft"><h3 class="popup-titulo">${local.nome}</h3><p class="popup-sistema">COMPLEMENTO: ${local.sistema}</p>${htmlObras}<a href="${linkMaps}" target="_blank" class="btn-maps">🗺️ Abrir no Google Maps</a></div>`;
 
-                const icone = L.divIcon({
-                    className: `icone-pino ${classeCor}`,
-                    iconSize: classeCor === 'pino-cinza' ? [12, 12] : [18, 18],
-                    iconAnchor: classeCor === 'pino-cinza' ? [6, 6] : [9, 9]
-                });
-
-                const marcador = L.marker([local.lat, local.lng], {icon: icone})
-                    .bindPopup(htmlPopup, { offset: [0, -5] })
-                    .addTo(marcadoresLayer);
-                
-                // Abre o popup ao passar o mouse
-                marcador.on('mouseover', function (e) {
-                    this.openPopup();
-                });
-                    
+                const icone = L.divIcon({ className: `icone-pino ${classeCor}`, iconSize: classeCor === 'pino-cinza' ? [12, 12] : [18, 18], iconAnchor: classeCor === 'pino-cinza' ? [6, 6] : [9, 9] });
+                const marcador = L.marker([local.lat, local.lng], {icon: icone}).bindPopup(htmlPopup, { offset: [0, -5] }).addTo(marcadoresLayer);
+                marcador.on('mouseover', function (e) { this.openPopup(); });
                 contadorMostrados++;
             }
-
             document.getElementById('contadorLocais').innerText = `${contadorMostrados} locais visíveis`;
         }
     </script>

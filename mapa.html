@@ -208,7 +208,7 @@
                     htmlObras = `<div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">Nenhum serviço ativo.</div>`;
                 }
 
-                const linkMaps = `http://googleusercontent.com/maps.google.com/maps?q=${local.lat},${local.lng}`;
+                const linkMaps = `https://www.google.com/maps/search/?api=1&query=${local.lat},${local.lng}`;
                 const htmlPopup = `<div class="popup-gft"><h3 class="popup-titulo">${local.nome}</h3><p class="popup-sistema">COMPLEMENTO: ${local.sistema}</p>${htmlObras}<a href="${linkMaps}" target="_blank" class="btn-maps">🗺️ Abrir no Google Maps</a></div>`;
 
                 const icone = L.divIcon({ className: `icone-pino ${classeCor}`, iconSize: classeCor === 'pino-cinza' ? [12, 12] : [18, 18], iconAnchor: classeCor === 'pino-cinza' ? [6, 6] : [9, 9] });

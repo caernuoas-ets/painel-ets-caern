@@ -40,14 +40,17 @@ auth.onAuthStateChanged(user => {
 
 function fazerLogin(event) {
     event.preventDefault();
-    // O .trim() remove espaços em branco acidentais no início ou no fim
     const email = document.getElementById('emailLogin').value.trim(); 
     const senha = document.getElementById('senhaLogin').value;
+    const btn = document.querySelector('.login-card button');
     
+    // Dá o feedback visual
+    btn.innerText = 'Autenticando...';
+
     auth.signInWithEmailAndPassword(email, senha).catch(error => {
-        // Agora o alerta vai mostrar o código de erro EXATO do Firebase
-        alert("Erro do Firebase: " + error.code + "\n\nDetalhe: " + error.message);
-        console.error(error);
+        // Se falhar, volta o botão ao normal e mostra um aviso simples
+        btn.innerText = 'Entrar no Sistema';
+        alert("Acesso negado: E-mail ou senha incorretos. Tente novamente.");
     });
 }
 
